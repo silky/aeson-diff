@@ -1,0 +1,14 @@
+packages: .
+package aeson-diff
+  ghc-options:
+    -Wall
+    -Wcpp-undef
+    -Widentities
+    -Wincomplete-record-updates
+    -Wincomplete-uni-patterns
+    -Wno-incomplete-patterns
+    -Wno-missing-export-lists
+    -Wno-missing-import-lists
+    -Wno-name-shadowing
+    -Wredundant-constraints
+    -Wunused-packages
