@@ -1,17 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
 
-module Main where
+module Main (main) where
 
-import           Control.Applicative
-import           Control.Exception
-import           Data.Aeson
-import           Data.Aeson.Diff
+import           Control.Exception (bracket)
+import           Data.Aeson (Result(Error, Success), Value, decode, encode, fromJSON)
+import           Data.Aeson.Diff (patch)
 import qualified Data.ByteString.Char8     as BS
 import qualified Data.ByteString.Lazy      as BSL
-import           Data.Monoid
-import           Options.Applicative       hiding (Success)
-import           Options.Applicative.Types hiding (Success)
-import           System.IO
+import           Options.Applicative (fullDesc, info, execParser, helper, metavar, progDesc, argument, help, value, long, option, short)
+import           Options.Applicative.Types (Parser, readerAsk)
+import           System.IO (Handle, IOMode(ReadMode, WriteMode), hClose, openFile, stdin, stdout)
 
 type File = Maybe FilePath
 

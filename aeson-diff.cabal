@@ -34,15 +34,12 @@ library
   exposed-modules:     Data.Aeson.Diff
                      , Data.Aeson.Patch
                      , Data.Aeson.Pointer
-  build-depends:       base >=4.9 && <4.17
+  build-depends:       base >=4.11.1 && <4.17
                      , aeson >= 2.0.3
                      , bytestring >= 0.10
                      , edit-distance-vector
-                     , hashable
-                     , mtl
                      , scientific
                      , text
-                     , unordered-containers
                      , vector
 
 executable             json-diff
@@ -54,7 +51,6 @@ executable             json-diff
                      , aeson-diff
                      , bytestring
                      , optparse-applicative
-                     , text
 
 executable             json-patch
   default-language:    Haskell2010
@@ -76,9 +72,6 @@ test-suite             properties
                      , aeson >= 2.0.3
                      , aeson-diff
                      , bytestring
-                     , quickcheck-instances
-                     , text
-                     , unordered-containers
                      , vector
 
 test-suite             examples
@@ -88,16 +81,11 @@ test-suite             examples
   main-is:             examples.hs
   build-depends:       base
                      , Glob
-                     , QuickCheck
                      , aeson >= 2.0.3
                      , aeson-diff
                      , bytestring
                      , directory
                      , filepath
-                     , quickcheck-instances
-                     , text
-                     , unordered-containers
-                     , vector
 
 test-suite doctests
   default-language:    Haskell2010
@@ -106,7 +94,6 @@ test-suite doctests
   ghc-options:         -threaded
   main-is:             doctests.hs
   build-depends:       base
-                     , QuickCheck
                      , doctest >= 0.20
   other-modules:       Build_doctests
   autogen-modules:     Build_doctests

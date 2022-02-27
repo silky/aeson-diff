@@ -1,19 +1,15 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 
-module Main where
+module Main (main) where
 
-import           Control.Applicative
-import           Control.Exception
-import           Data.Aeson
-import           Data.Aeson.Diff
+import           Control.Exception (bracket)
+import           Data.Aeson (Value, encode, decode)
+import           Data.Aeson.Diff (Config(Config), diff')
 import qualified Data.ByteString.Char8     as BS
 import qualified Data.ByteString.Lazy      as BSL
-import           Data.Monoid
-import qualified Data.Text.IO              as T
-import           Options.Applicative
-import           Options.Applicative.Types
-import           System.IO
+import           Options.Applicative (fullDesc, info, execParser, helper, metavar, progDesc, argument, help, value, long, option, short, switch)
+import           Options.Applicative.Types (Parser, readerAsk)
+import           System.IO (Handle, IOMode(ReadMode, WriteMode), hClose, openFile, stdin, stdout)
 
 type File = Maybe FilePath
 

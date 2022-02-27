@@ -4,23 +4,18 @@
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
-module Main where
+module Main (main) where
 
-import           Control.Applicative
-import           Control.Monad
-import           Data.Aeson                 as A
+import           Control.Monad              (unless)
+import           Data.Aeson                 (Result(Success), Value(Array, Object), encode)
 import qualified Data.ByteString.Lazy.Char8 as BL
-import           Data.Functor
 import qualified Data.Aeson.KeyMap          as HM
-import           Data.Monoid
-import           Data.Text                  (Text)
 import qualified Data.Vector                as V
-import           System.Exit
-import           Test.QuickCheck
-import           Test.QuickCheck.Instances  ()
+import           System.Exit                (exitFailure)
+import           Test.QuickCheck            (Arbitrary, Gen, arbitrary, oneof, quickCheckAll, resize, sized)
 
-import Data.Aeson.Diff
-import Data.Aeson.Patch
+import Data.Aeson.Diff                      (Config(Config), diff, diff', patch)
+import Data.Aeson.Patch                     (isRem, isTst, patchOperations)
 
 showIt :: Value -> String
 showIt = BL.unpack . encode
@@ -64,12 +59,12 @@ diffApply
     -> Bool
 diffApply f t =
     let p = diff f t
-    in (A.Success t == patch p f) ||
+    in (Success t == patch p f) ||
        error ("BAD PATCH\n" <> BL.unpack (encode p) <> "\n"
                             <> result "<failure>" (BL.unpack . encode <$> patch p f))
 
-result :: a -> A.Result a -> a
-result _ (A.Success a) = a
+result :: a -> Result a -> a
+result _ (Success a) = a
 result a _             = a
 
 -- | Patch extracted from identical documents should be mempty.
@@ -112,7 +107,9 @@ prop_tst_before_rem (Wellformed f) (Wellformed t) =
   let ops = zip [1..] (patchOperations $ diff' (Config True) f t)
       rs = map fst . filter (isRem . snd) $ ops
       ts = map fst . filter (isTst . snd) $ ops
-  in (length rs <= length ts) && all (\r -> (r - 1) `elem` ts) rs
+      minusOneInTs :: Integer -> Bool
+      minusOneInTs r = (r - 1) `elem` ts
+  in (length rs <= length ts) && all minusOneInTs rs
 
 --
 -- Use Template Haskell to automatically run all of the properties above.

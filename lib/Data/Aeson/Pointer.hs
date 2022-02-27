@@ -14,17 +14,14 @@ module Data.Aeson.Pointer (
   pointerFailure,
 ) where
 
-import           Control.Applicative
-import           Data.Aeson hiding (Key)
+import           Data.Aeson (encode)
 import qualified Data.Aeson.Key (Key)
 import           Data.Aeson.Key (fromText, toText)
 import qualified Data.Aeson.KeyMap as HM
-import           Data.Aeson.Types hiding (Key)
+import           Data.Aeson.Types (FromJSON(parseJSON), Parser, Result(Error), ToJSON(toJSON), Value(Array, Object, Number, String), modifyFailure)
 import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Char                  (isNumber)
-import           Data.Monoid
-import           Data.Scientific
-import           Data.Semigroup             (Semigroup)
+import           Data.Scientific            (toBoundedInteger)
 import           Data.Text                  (Text)
 import qualified Data.Text                  as T
 import qualified Data.Vector                as V
@@ -140,7 +137,7 @@ get pointer value = pointerFailure pointer value
 
 -- | Report an error while following a pointer.
 pointerFailure :: Pointer -> Value -> Result a
-pointerFailure (Pointer []) value = Error "Cannot follow empty pointer. This is impossible."
+pointerFailure (Pointer []) _value = Error "Cannot follow empty pointer. This is impossible."
 pointerFailure (Pointer path@(key:_)) value =
     Error . BS.unpack $ "Cannot follow pointer " <> pt <> ". Expected " <> ty <> " but got " <> doc
   where

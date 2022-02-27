@@ -2,27 +2,23 @@
 
 -- | Test examples from RFC 6902 sections A.1 to A.16.
 
-module Main where
+module Main (main) where
 
-import           Control.Applicative
-import           Control.Exception
-import           Control.Monad
-import           Data.Aeson
-import           Data.Aeson.Diff
+import           Control.Exception          (AssertionFailed(AssertionFailed), IOException, catch, try, throw)
+import           Control.Monad              (when)
+import           Data.Aeson                 (Result(Success, Error), Value, decodeStrict, eitherDecodeStrict, encode)
+import           Data.Aeson.Diff            (Patch, patch)
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Char8      as BC
 import qualified Data.ByteString.Lazy.Char8 as BL
-import           Data.Char
-import           Data.Either
-import           Data.Functor
+import           Data.Char                  (isSpace)
 import           Data.List                  (isInfixOf, nub)
-import           Data.Maybe
-import           Data.Monoid
-import           System.Directory
-import           System.Environment
-import           System.Exit
-import           System.FilePath
-import           System.FilePath.Glob
+import           Data.Maybe                 (isJust)
+import           System.Directory           (getDirectoryContents)
+import           System.Environment         (getArgs)
+import           System.Exit                (exitFailure)
+import           System.FilePath            ((</>))
+import           System.FilePath.Glob       (compile, match, simplify)
 
 roots :: [FilePath]
 roots = ["test/data/rfc6902", "test/data/cases"]
@@ -60,11 +56,11 @@ readResult root name = do
     case (err, doc) of
       (Nothing, Just d)  -> return (Right d)
       (Just er, Nothing) -> return (Left er)
-      (Just er, Just d)  -> derp "Expecting both error and success"
+      (Just _er, Just _) -> derp "Expecting both error and success"
       (Nothing, Nothing) -> derp "No result defined; add `*-error.txt' or `*-result.json'"
   where
     handle :: IOException -> IO (Maybe a)
-    handle e = return Nothing
+    handle _ = return Nothing
 
 readExample :: FilePath -> FilePath -> IO (Value, Either String Patch, Either String Value)
 readExample root name =
@@ -95,7 +91,7 @@ runExample (doc, diff, res) =
                   | msg /= err -> Just $ "Test Fails - Got: " <> msg <> "\nExpected: " <> err
                   | otherwise  -> Nothing
   where
-    success n = Nothing
+    success _ = Nothing
     failure n = Just ("Test Fails - " <> n)
 
 testExample :: FilePath -> FilePath -> IO (Maybe String)

@@ -18,18 +18,15 @@ module Data.Aeson.Patch (
   isTst,
 ) where
 
-import           Control.Applicative
-import           Control.Monad
-import           Data.Aeson
-import           Data.Aeson.Types
+import           Control.Applicative ((<|>))
+import           Control.Monad (mzero)
+import           Data.Aeson ((.:), (.=), FromJSON(parseJSON), ToJSON(toJSON), encode)
+import           Data.Aeson.Types (Value(Array, Object, String), modifyFailure, object, typeMismatch)
 import qualified Data.ByteString.Lazy.Char8 as BS
-import           Data.Monoid
-import           Data.Semigroup             (Semigroup)
-import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
 import           GHC.Generics               (Generic)
 
-import Data.Aeson.Pointer
+import Data.Aeson.Pointer (Pointer)
 
 -- * Patches
 
@@ -123,7 +120,6 @@ instance FromJSON Operation where
             if v' == val
               then return v'
               else mzero
-        fixed' o n val = (o .: n) >>= \v -> guard (v == n)
 
 -- | Modify the 'Pointer's in an 'Operation'.
 --

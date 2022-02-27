@@ -1,6 +1,5 @@
 {-# LANGUAGE NamedFieldPuns    #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
 
 -- | Description: Extract and apply patches on JSON documents.
 --
@@ -21,28 +20,21 @@ module Data.Aeson.Diff (
     applyOperation,
 ) where
 
-import           Control.Applicative
-import           Control.Monad
-import           Control.Monad.Error.Class
-import           Data.Aeson hiding (Key)
+import           Control.Monad              (unless)
+import           Data.Aeson                 (Array, Object, Result(Success, Error), Value(Array, Object, String, Null, Bool, Number))
 import qualified Data.Aeson.Key as AesonKey
 import qualified Data.Aeson.KeyMap as HM
-import           Data.Aeson.Types           (modifyFailure, typeMismatch)
-import qualified Data.ByteString.Lazy.Char8 as BS
 import           Data.Foldable              (foldlM)
-import           Data.Hashable
-import           Data.List                  (groupBy, intercalate)
-import           Data.Maybe
-import           Data.Monoid
-import           Data.Scientific
-import           Data.Text                  (Text)
+import           Data.List                  (groupBy)
+import           Data.Maybe                 (fromJust)
+import           Data.Monoid                (Sum(Sum))
 import qualified Data.Text                  as T
 import           Data.Vector                (Vector)
 import qualified Data.Vector                as V
-import           Data.Vector.Distance
+import           Data.Vector.Distance       (Params(Params, equivalent, positionOffset, substitute, insert, delete, cost), leastChanges)
 
-import Data.Aeson.Patch
-import Data.Aeson.Pointer
+import Data.Aeson.Patch                     (Operation(Add, Cpy, Mov, Rem, Rep, Tst), Patch(Patch), changePointer, changeValue, modifyPointer)
+import Data.Aeson.Pointer                   (Key(AKey, OKey), Pointer(Pointer), formatPointer, get, pointerFailure, pointerPath)
 
 -- * Configuration
 
@@ -78,18 +70,18 @@ valueSize val = case val of
 
 -- | Construct a patch with a single 'Add' operation.
 ins :: Config -> Pointer -> Value -> [Operation]
-ins cfg p v = [Add p v]
+ins _cfg p v = [Add p v]
 
 -- | Construct a patch with a single 'Rem' operation.
 del :: Config -> Pointer -> Value -> [Operation]
-del Config{..} p v =
+del Config{configTstBeforeRem} p v =
   if configTstBeforeRem
   then [Tst p v, Rem p]
   else [Rem p]
 
 -- | Construct a patch which changes 'Rep' operation.
 rep :: Config -> Pointer -> Value -> [Operation]
-rep Config{..} p v = [Rep p v]
+rep _cfg p v = [Rep p v]
 
 -- * Diff
 
@@ -108,7 +100,7 @@ diff'
     -> Value
     -> Value
     -> Patch
-diff' cfg@Config{..} v v' = Patch (worker mempty v v')
+diff' cfg v v' = Patch (worker mempty v v')
   where
     check :: Monoid m => Bool -> m -> m
     check b v = if b then mempty else v
@@ -162,11 +154,13 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
     workArray path ss tt = fmap (modifyPointer (path <>)) . snd . fmap concat $ leastChanges params ss tt
       where
         params :: Params Value [Operation] (Sum Int)
-        params = Params{..}
+        params = Params{equivalent, delete, insert, substitute, cost, positionOffset}
+        equivalent :: Value -> Value -> Bool
         equivalent = (==)
         delete i = del cfg (Pointer [AKey i])
         insert i = ins cfg (Pointer [AKey i])
         substitute i = worker (Pointer [AKey i])
+        cost :: [Operation] -> Sum Int
         cost = Sum . sum . fmap operationCost
         -- Position is advanced by grouping operations with same "head" index:
         -- + groups of many operations advance one
@@ -178,7 +172,7 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
             let p1 = pointerPath (changePointer o1)
                 p2 = pointerPath (changePointer o2)
             in case (p1, p2) of
-                 ([i1], [i2]) -> False
+                 ([_], [_]) -> False
                  (i1:_, i2:_) | i1 == i2  -> True
                               | otherwise -> False
         -- A group of operations has a peculiar (i.e. given by 'pos') advance
@@ -204,7 +198,7 @@ diff' cfg@Config{..} v v' = Patch (worker mempty v v')
         pos Mov{changePointer=Pointer path}
             | length path == 1 = 1
             | otherwise        = 0
-        pos Tst{changePointer=Pointer path} = 0
+        pos Tst{changePointer=Pointer _path} = 0
 
 -- * Patching
 
@@ -227,9 +221,7 @@ applyOperation op json = case op of
     Rep path v'   -> applyRep path v' json
     Tst path v    -> applyTst path v  json
     Cpy path from -> applyCpy path from json
-    Mov path from -> do
-        v' <- get from json
-        applyRem from json >>= applyAdd path v'
+    Mov path from -> applyMov path from json
 
 -- | Apply an 'Add' operation to a document.
 --
@@ -245,9 +237,7 @@ applyAdd pointer = go pointer
     go (Pointer []) val _ =
         return val
     go (Pointer [AKey i]) v' (Array v) =
-        let fn :: Maybe Value -> Result (Maybe Value)
-            fn _ = return (Just v')
-        in return (Array $ vInsert i v' v)
+        return (Array $ vInsert i v' v)
     go (Pointer (AKey i : path)) v' (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
             fn Nothing  = cannot "insert" "array" i pointer
@@ -273,10 +263,10 @@ applyRem :: Pointer -> Value -> Result Value
 applyRem from@(Pointer path) = go path
   where
     go [] _ = return Null
-    go [AKey i] d@(Array v) =
+    go [AKey i] (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
             fn Nothing  = cannot "delete" "array" i from
-            fn (Just v) = return Nothing
+            fn (Just _) = return Nothing
         in Array <$> vModify i fn v
     go (AKey i : path) (Array v) =
         let fn :: Maybe Value -> Result (Maybe Value)
@@ -297,7 +287,7 @@ applyRem from@(Pointer path) = go path
     go (OKey n : path) array@(Array v)
         | n == "-" = go (AKey (V.length v) : path) array
     -- Type mismatch: clearly the thing we're deleting isn't here.
-    go path value = pointerFailure from value
+    go _path value = pointerFailure from value
 
 -- | Apply a 'Rep' operation to a document.
 --
