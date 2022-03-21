@@ -94,7 +94,7 @@ test-suite doctests
   ghc-options:         -threaded
   main-is:             doctests.hs
   build-depends:       base
-                     , doctest >= 0.20
+                     , doctest >= 0.18.2
   other-modules:       Build_doctests
   autogen-modules:     Build_doctests
 
@@ -111,4 +111,5 @@ test-suite             hlint-check
 custom-setup
  setup-depends:
    base >= 4 && <5,
-   cabal-doctest >= 1 && <1.1
+   cabal-doctest >= 1 && <1.1,
+   Cabal -- stack needs this
