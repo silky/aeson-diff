@@ -3,7 +3,8 @@
 module Main (main) where
 
 import           Control.Exception (bracket)
-import           Data.Aeson (Value, encode, decode)
+import           Codec (encode, decode, ForceFormat(..))
+import           Data.Aeson (Value)
 import           Data.Aeson.Diff (Config(Config), diff')
 import qualified Data.ByteString.Char8     as BS
 import qualified Data.ByteString.Lazy      as BSL
@@ -19,10 +20,12 @@ data DiffOptions = DiffOptions
     , optionOut  :: File
     , optionFrom :: File
     , optionTo   :: File
+    , optionYaml :: Bool
     }
 
 data Configuration = Configuration
-    { cfgTst  :: Bool
+    { cfgOptions :: DiffOptions
+    , cfgTst  :: Bool
     , cfgOut  :: Handle
     , cfgFrom :: Handle
     , cfgTo   :: Handle
@@ -48,6 +51,10 @@ optionParser = DiffOptions
     <*> argument fileP
         (  metavar "TO"
         )
+    <*> switch
+        (  long "yaml"
+        <> help "Use yaml decoding and encoding."
+        )
   where
     fileP = do
         s <- readerAsk
@@ -55,11 +62,14 @@ optionParser = DiffOptions
             "-" -> Nothing
             _ -> Just s
 
-jsonFile :: Handle -> IO Value
-jsonFile fp = do
+jsonFile :: Handle -> ForceFormat -> File -> IO Value
+jsonFile fp mformat mfilepath = do
     s <- BS.hGetContents fp
-    case decode (BSL.fromStrict s) of
-        Nothing -> error "Could not parse as JSON"
+    case decode mformat mfilepath (BSL.fromStrict s) of
+        Nothing ->
+          case mformat of
+            ForceYaml ->        error "Could not parse as YAML"
+            AutodetectFormat -> error "Could not parse file. Make sure the file contents and the extension correspond: i.e. use '.json' for JSON files."
         Just v -> return v
 
 run :: DiffOptions -> IO ()
@@ -74,9 +84,10 @@ run opt = bracket (load opt) close process
     openw (Just p) = openFile p WriteMode
 
     load :: DiffOptions -> IO Configuration
-    load DiffOptions{..} =
+    load options@DiffOptions{..} =
         Configuration
-            <$> pure  optionTst
+            <$> pure  options
+            <*> pure  optionTst
             <*> openw optionOut
             <*> openr optionFrom
             <*> openr optionTo
@@ -89,11 +100,12 @@ run opt = bracket (load opt) close process
 
 process :: Configuration -> IO ()
 process Configuration{..} = do
-    json_from <- jsonFile cfgFrom
-    json_to <- jsonFile cfgTo
+    let mformat = if optionYaml cfgOptions then ForceYaml else AutodetectFormat
+    json_from <- jsonFile cfgFrom mformat (optionFrom cfgOptions)
+    json_to <- jsonFile cfgTo mformat (optionTo cfgOptions)
     let c = Config cfgTst
     let p = diff' c json_from json_to
-    BS.hPutStrLn cfgOut $ BSL.toStrict (encode p)
+    BS.hPutStrLn cfgOut $ BSL.toStrict (encode mformat (optionOut cfgOptions) p)
 
 main :: IO ()
 main = execParser opts >>= run
