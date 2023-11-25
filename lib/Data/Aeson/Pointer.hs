@@ -4,6 +4,7 @@
 -- | Description: JSON Pointers as described in RFC 6901.
 module Data.Aeson.Pointer (
   Pointer(..),
+  Pointer,
   Key(..),
   Path,
   -- * Representing pointers
